@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-from rnn.attention import *
+from rnn.my_attention import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -30,6 +30,7 @@ class GRU_Encoder(nn.Module):
             if input.size(0) != inter_modal_h.size(0):
                 # test batchでmodal間のサイズが違う分のinter_modal_hの複製(repeat_interleave, repeat, tile, expand)
                 # To Do
+                inter_modal_h = inter_modal_h.repeat_interleave(input.size(0), dim=0)
                 print(input.size(), inter_modal_h.size())
             if inter_modal_h.size(1) == self.hidden_size:
                 h0 = h1 = inter_modal_h
@@ -78,6 +79,7 @@ class Bidirectional_GRU_Encoder(nn.Module):
             if input.size(0) != inter_modal_h.size(0):
                 # test batchでmodal間のサイズが違う分のinter_modal_hの複製(repeat_interleave, repeat, tile, expand)
                 # To Do
+                inter_modal_h = inter_modal_h.repeat_interleave(input.size(0), dim=0)
                 print(input.size(), inter_modal_h.size())
             if inter_modal_h.size(1) == self.hidden_size:
                 h0_f = h0_b = h1_f = h1_b = inter_modal_h
@@ -124,6 +126,8 @@ class LSTM_Encoder(nn.Module):
             if input.size(0) != inter_modal_h.size(0):
                 # test batchでmodal間のサイズが違う分のinter_modal_h, inter_modal_cの複製(repeat_interleave, repeat, tile, expand)
                 # To Do
+                inter_modal_h = inter_modal_h.repeat_interleave(input.size(0), dim=0)
+                inter_modal_c = inter_modal_c.repeat_interleave(input.size(0), dim=0)
                 print(input.size(), inter_modal_h.size(), inter_modal_c.size())
             if inter_modal_h.size(1) == self.hidden_size:
                 h0 = h1 = inter_modal_h
@@ -143,6 +147,7 @@ class LSTM_Encoder(nn.Module):
         out = torch.stack(out, dim=1)
         c_out = torch.stack(c_out, dim=1)
         return (out, c_out), (h1, c1)
+
 
 
 class Bidirectional_LSTM_Encoder(nn.Module):
@@ -182,6 +187,8 @@ class Bidirectional_LSTM_Encoder(nn.Module):
             if input.size(0) != inter_modal_h.size(0):
                 # test batchでmodal間のサイズが違う分のinter_modal_h, inter_modal_cの複製(repeat_interleave, repeat, tile, expand)
                 # To Do
+                inter_modal_h = inter_modal_h.repeat_interleave(input.size(0), dim=0)
+                inter_modal_c = inter_modal_c.repeat_interleave(input.size(0), dim=0)
                 print(input.size(), inter_modal_h.size(), inter_modal_c.size())
             if inter_modal_h.size(1) == self.hidden_size:
                 h0_f = h0_b = h1_f = h1_b = inter_modal_h
