@@ -4,6 +4,11 @@ import torch.nn.init as init
 from rnn.encoder import *
 from rnn.decoder import *
 from rnn.transformer import *
+from rnn.my_attention import Attention
+
+def l2norm(out):
+  norm = torch.norm(out, dim=-1, keepdim=True)
+  return out / norm
 
 class Net(nn.Module):
   def __init__(self, word_embeddings, args):
@@ -58,13 +63,13 @@ class Net(nn.Module):
       self.transformer = Transformer(args)
 
     if bidirection == True:
-      self.attention = Attention(hidden_size*2)
+      self.attention = Attention(hidden_size*2, args)
       self.fc = nn.Linear(hidden_size*2, output_size)
     else:
-      self.attention = Attention(hidden_size)
+      self.attention = Attention(hidden_size, args)
       self.fc = nn.Linear(hidden_size, output_size)
 
-    if self.attention_rnn == True or self.self_attention == True or self.rnn == 'Transformer':
+    if self.self_attention == True or self.rnn == 'Transformer':
       self.length_fc = nn.Linear(args.fix_length, 1)
       init.xavier_uniform_(self.length_fc.weight)
     
@@ -80,19 +85,22 @@ class Net(nn.Module):
     if self.rnn == 'GRU':
       out, h = self.encoder(embed)
       out, h = self.decoder(embed, out, h)
+      # out = l2norm(out)
+      # h = l2norm(h)
       # print('decoder', out.size(), h.size())
     elif  self.rnn == 'LSTM':
       out, h = self.encoder(embed)
       out, h = self.decoder(embed, out, h)
       h, _ = h
+      # out = l2norm(out)
+      # h = l2norm(h)
     elif self.rnn == 'Transformer':
       out = self.transformer(embed)
+      # out = l2norm(out)
 
     if self.self_attention:
       if self.rnn == 'GRU' or self.rnn =='LSTM':
-        h = h.unsqueeze(dim=1)
         out, attention_map = self.attention(h, out)
-        out = out.squeeze(dim=1)
         # print('self attention', out.size(), attention_map.size())
       elif self.rnn == 'Transformer':
         out, attention_map = self.attention(out, out)
@@ -131,7 +139,7 @@ class Model(nn.Module):
     print('-'*50)
     print('rnn:', self.rnn)
     print('bidirection:', self.bidirection)
-    print('attention:', self.self_attention)
+    print('self attention:', self.self_attention)
     print('-'*50)
 
     self.embed = nn.Embedding.from_pretrained(embeddings=word_embeddings, freeze=True)
@@ -149,10 +157,10 @@ class Model(nn.Module):
       self.transformer = Transformer(args)
 
     if self.bidirection == True:
-      self.attention = Attention(hidden_size*2)
+      self.attention = Attention(hidden_size*2, args)
       self.fc = nn.Linear(hidden_size*2, output_size)
     else:
-      self.attention = Attention(hidden_size)
+      self.attention = Attention(hidden_size, args)
       self.fc = nn.Linear(hidden_size, output_size)
 
     if self.self_attention == True or self.rnn == 'Transformer':
@@ -170,28 +178,31 @@ class Model(nn.Module):
 
     if self.rnn == 'GRU':
       out, h = self.encoder(embed)
+      # out = l2norm(out)
+      # h = l2norm(h)
     elif  self.rnn == 'LSTM':
       out, h = self.encoder(embed)
       out, _ = out
       h, _ = h
+      # out = l2norm(out)
+      # h = l2norm(h)
     elif self.rnn == 'Transformer':
       out = self.transformer(embed)
+      # out = l2norm(out)
     
     if self.self_attention:
       if self.rnn == 'GRU' or self.rnn =='LSTM':
-        h = h.unsqueeze(dim=1)
         out, attention_map = self.attention(h, out)
-        out = out.squeeze(dim=1)
         # print('self attention', out.size())
       elif self.rnn == 'Transformer':
         out, attention_map = self.attention(out, out)
         out = self.length_fc(out.permute(0, 2, 1)).squeeze(dim=2)
         # print('self attention', out.size())
     else:
-      if self.rnn == 'GRU' and self.rnn == 'LSTM':
+      if self.rnn == 'GRU' or self.rnn == 'LSTM':
         out = h
       elif self.rnn == 'Transformer':
-        out = self.length_fc(out.permute(0, 2, 1)).suqueeze(dim=2)
+        out = self.length_fc(out.permute(0, 2, 1)).squeeze(dim=2)
         # print('length_fc', out.size())
     
     out = self.fc(out)

@@ -22,11 +22,11 @@ def parse_args():
 
     # general setting
     parser.add_argument('--batch_size', dest='batch_size', type=int, default=32)
-    parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=10)
+    parser.add_argument('--epoch_num', dest='epoch_num', type=int, default=20)
     parser.add_argument('--num_workers', dest='num_workers', type=int, default=4)
 
     # model setting
-    parser.add_argument('--model', dest='model', type=str, default='net')
+    parser.add_argument('--model', dest='model', type=str, default='model')
 
     # rnn setting
     parser.add_argument('--rnn', dest='rnn', type=str, default='GRU')
@@ -38,12 +38,21 @@ def parse_args():
     parser.add_argument('--output_size', dest='output_size', type=int, default=2)
     parser.add_argument('--dropout', dest='dropout', type=float, default=0.2)
 
+    # attention setting
+    parser.add_argument('--attention_qkv_linear', dest='attention_qkv_linear', type=bool, default=False)
+    parser.add_argument('--attention_mask', dest='attention_mask', type=bool, default=False)
+    parser.add_argument('--scaled_dot_product', dest='scaled_dot_product', type=bool, default=True)
+    parser.add_argument('--attention_output', dest='attention_output', type=str, choices=['', 'cat', 'add'], default='') # '', 'cat', 'add'
+
     # learing rate setting(ReduceLROnPlateau(mode='min'))
-    parser.add_argument('--learning_rate', dest='learning_rate', type=float, default=math.sqrt(1e-12))
-    parser.add_argument('--min_learning_rate', dest='min_learning_rate', type=float, default=math.sqrt(1e-14))
+    parser.add_argument('--learning_rate', dest='learning_rate', type=float, default=math.sqrt(1e-8))
+    parser.add_argument('--min_learning_rate', dest='min_learning_rate', type=float, default=math.sqrt(1e-12))
     parser.add_argument('--patience', dest='patience', type=int, default=0)
     parser.add_argument('--cooldown', dest='cooldown', type=int, default=0)
     parser.add_argument('--factor', dest='factor', type=float, default=math.sqrt(0.1))
+
+    # optimizer setting
+    parser.add_argument('--weight_decay', dest='weight_decay', type=float, default=1e-3)
 
     # vocabulary setting
     parser.add_argument('--min_freq', dest='min_freq', type=int, default=10)
@@ -53,7 +62,7 @@ def parse_args():
     return args
 
 def draw_heatmap(data, row_labels, column_labels, save_dir=None, name=None):
-    fig, ax = plt.subplots(figsize=(4, 40))
+    fig, ax = plt.subplots(figsize=(20, 1))
     heatmap = ax.pcolor(data, cmap=plt.cm.Blues)
 
     ax.set_xticks(np.arange(data.shape[1]) + 0.5, minor=False)
@@ -64,7 +73,7 @@ def draw_heatmap(data, row_labels, column_labels, save_dir=None, name=None):
 
     ax.set_xticklabels(row_labels, minor=False, rotation=90)
     ax.set_yticklabels(column_labels, minor=False)
-    plt.savefig(os.path.join(save_dir, name+'.png'))
+    plt.savefig(os.path.join(save_dir, name+'.png'), bbox_inches='tight')
     plt.close()
 
 def sec2str(sec):
@@ -115,13 +124,17 @@ def train(train_iter, val_iter, net, criterion, optimizer, lr_scheduler, TEXT, a
             label = batch_train.label
             # print(text.size())
             # print(label.size())
+            # print('text')
+            # print(text)
+            # print('label')
+            # print(label)
             if text.size(0) != args.batch_size:
                 break
 
             text = text.to(device)
             label = label.to(device)
 
-            # optimizer.zero_grad()
+            optimizer.zero_grad()
             if args.self_attention:
                 output, attention_map = net(text)
                 # print('attention_map')
@@ -230,7 +243,7 @@ def test(test_iter, net, TEXT, args):
 
             if args.self_attention:
                 output, attention_map = net(text)
-                if i % 1000 == 0:
+                if i % 500 == 0:
                     # print('attention_map')
                     # print(attention_map.size())
                     for j in range(args.batch_size):
@@ -277,7 +290,7 @@ def main():
 
     print('train_iter {}, val_iter {}, test_iter {}'.format(len(train_iter.dataset), len(val_iter.dataset), len(test_iter.dataset)))
     word_embeddings = TEXT.vocab.vectors
-    print('word_embbedings', word_embeddings.size())
+    print('word embbedings', word_embeddings.size())
 
     print(args.model)
     if args.model == 'net':
@@ -285,7 +298,7 @@ def main():
     else:
         net = Model(word_embeddings, args).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(net.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.factor, verbose=True, min_lr=args.min_learning_rate)
 
     train(train_iter, val_iter, net, criterion, optimizer, lr_scheduler, TEXT, args)
