@@ -18,7 +18,7 @@ class Attention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
         self.output_mode = args.attention_output
-        self.cat_linear = nn.Linear(dimension * 2, dimension)
+        self.cat_linear = nn.Linear(dimension*2, dimension)
         self.relu = nn.ReLU()
         self.output_linear = nn.Linear(dimension, dimension)
         
