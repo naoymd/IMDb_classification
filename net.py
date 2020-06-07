@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-from rnn.encoder import *
-from rnn.decoder import *
+import torch.nn.functional as F
+from rnn.my_encoder import *
+from rnn.my_decoder import *
 from rnn.transformer import *
 from rnn.my_attention import Attention
+from rnn.tcn import MSResNet
 
 def l2norm(out):
   norm = torch.norm(out, dim=-1, keepdim=True)
@@ -191,7 +193,7 @@ class Model(nn.Module):
       # out = l2norm(out)
     
     if self.self_attention:
-      if self.rnn == 'GRU' or self.rnn =='LSTM':
+      if self.rnn == 'GRU' or self.rnn == 'LSTM':
         out, attention_map = self.attention(h, out)
         # print('self attention', out.size())
       elif self.rnn == 'Transformer':
@@ -215,4 +217,61 @@ class Model(nn.Module):
       return out, attention_map
     else:
       return out
-    
+
+
+class TCN(nn.Module):
+  def __init__(self, word_embeddings, args):
+    super(TCN, self).__init__()
+    self.embed = nn.Embedding.from_pretrained(embeddings=word_embeddings, freeze=True)
+    self.tcn = MSResNet(args.input_size, args)
+    self.length_fc = nn.Linear(args.fix_length, 1)
+    self.self_attention = args.self_attention
+    self.attention = Attention(args.hidden_size, args)
+    self.fc = nn.Linear(args.hidden_size, args.output_size)
+
+  def forward(self, x):
+    x = self.embed(x)
+    x = self.tcn(x)
+    out = self.length_fc(x.permute(0, 2, 1)).squeeze()
+    if self.self_attention:
+      out, attention_map = self.attention(out, x)
+      out = F.relu(self.fc(out))
+      return out, attention_map
+    else:
+      out = F.relu(self.fc(out))
+      return out
+
+
+class GRU_Layer(nn.Module):
+  def __init__(self, word_embeddings, args):
+    super(GRU_Layer, self).__init__()
+    print('-'*50)
+    print('bidirection:', args.bidirection)
+    print('self attention:', args.self_attention)
+    print('-'*50)
+    self.embed = nn.Embedding.from_pretrained(embeddings=word_embeddings, freeze=True)
+    self.h0 = torch.zeros(1, args.batch_size, args.hidden_size)
+    self.gru = nn.GRU(args.input_size, args.hidden_size, num_layers=args.num_layers, batch_first=True, bidirectional=args.bidirection)
+    self.self_attention = args.self_attention
+    self.attention = Attention(args.hidden_size, args)
+    self.fc = nn.Linear(args.hidden_size, args.output_size)
+    self.relu = nn.ReLU()
+    self.dropout = nn.Dropout(p=args.dropout)
+    init.xavier_uniform_(self.fc.weight)
+
+  def forward(self, x):
+    x = self.embed(x)
+    out, h = self.gru(x, self.h0)
+    h = h.squeeze(dim=0)
+    # print('out: {}, h: {}'.format(out.size(), h.size()))
+    if self.self_attention:
+      h, attention_map = self.attention(h, out)
+      h = self.fc(h)
+      # h = self.relu(h)
+      # h = self.dropout(h)
+      return h, attention_map
+    else:
+      h = self.fc(h)
+      # h = self.relu(h)
+      # h = self.dropout(h)
+      return h

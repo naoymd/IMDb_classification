@@ -10,7 +10,7 @@ import torchtext
 import spacy
 import argparse
 import matplotlib.pyplot as plt
-from net import Net, Model
+from net import Net, Model, TCN, GRU_Layer
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -29,9 +29,10 @@ def parse_args():
     parser.add_argument('--model', dest='model', type=str, default='model')
 
     # rnn setting
-    parser.add_argument('--rnn', dest='rnn', type=str, default='GRU')
+    parser.add_argument('--rnn', dest='rnn', type=str, default='Transformer')
     parser.add_argument('--bidirection', dest='bidirection', type=bool, default=False)
     parser.add_argument('--attention_rnn', dest='attention_rnn', type=bool, default=False)
+    parser.add_argument('--num_layers', dest='num_layers', type=int, default=6)
     parser.add_argument('--input_size', dest='input_size', type=int, default=300)
     parser.add_argument('--hidden_size', dest='hidden_size', type=int, default=512)
     parser.add_argument('--self_attention', dest='self_attention', type=bool, default=False)
@@ -295,8 +296,12 @@ def main():
     print(args.model)
     if args.model == 'net':
         net = Net(word_embeddings, args).to(device)
-    else:
+    elif args.model == 'model':
         net = Model(word_embeddings, args).to(device)
+    elif args.model == 'tcn':
+        net = TCN(word_embeddings, args).to(device)
+    else:
+        net = GRU_Layer(word_embeddings, args).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=args.factor, verbose=True, min_lr=args.min_learning_rate)
