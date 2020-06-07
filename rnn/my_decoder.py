@@ -221,6 +221,8 @@ class Modal_Attention_Bidirectional_GRU_Decoder(nn.Module):
             self.gru_b.append(nn.GRUCell(input_size, hidden_size))
             input_size = hidden_size
         self.rnn_attention = Attention(hidden_size*2, args)
+        print(self.gru_f)
+        print(self.gru_b)
         
     def reverse_input(self, input):
         reverse_input = torch.flip(input, [1])

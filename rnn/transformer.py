@@ -1,18 +1,66 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.init as init
+
+
+class Positional_Encoding(nn.Module):
+    def __init__(self, dimension):
+        super(Positional_Encoding, self).__init__()
+        max_len = 5000
+        self.dropout = nn.Dropout(p=0.1)
+
+        pe = torch.zeros(max_len, dimension)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(dim=1)
+        div_term = torch.exp(torch.arange(0, dimension, 2).float() * (-math.log(10000.0) / dimension))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0) # pe.size() -> [1, max_len, dimension]
+        self.register_buffer('pe', pe)
+
+    def forward(self, input):
+        """
+        input: (batch_size, seqence_length, dimension)
+        """
+        output = input + self.pe[:, :input.size(1), :]
+        output = self.dropout(output)
+        return output
+
+
 
 class Transformer(nn.Module):
     def __init__(self, args):
         super(Transformer, self).__init__()
         input_size = args.input_size
         hidden_size = args.hidden_size
+        num_layers = args.num_layers
         
-        self.fc = nn.Linear(input_size, hidden_size)
-        self.transformer = nn.Transformer(d_model=hidden_size)
+        self.src_fc = nn.Linear(input_size, hidden_size)
+        self.src_pe = Positional_Encoding(hidden_size)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_size, nhead=8)
+        encoder_norm = nn.LayerNorm(hidden_size)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers, encoder_norm)
+        # self.encoder = nn.Transformer(hidden_size)
 
-    def forward(self, x):
-        out = self.fc(x)
-        out = self.transformer(out, out)
+        self.tgt_fc = nn.Linear(input_size, hidden_size)
+        self.tgt_pe = Positional_Encoding(hidden_size)
+        decoder_layer = nn.TransformerDecoderLayer(d_model=hidden_size, nhead=8)
+        decoder_norm = nn.LayerNorm(hidden_size)
+        self.decoder = nn.TransformerDecoder(decoder_layer, num_layers, decoder_norm)
+        
 
-        return out
+    def forward(self, src, tgt=None):
+        """
+        src: Encoder側の入力
+        tgt: Decoder側の入力
+        """
+        if tgt is None:
+            tgt = src
+        src = self.src_fc(src)
+        src_pe = self.src_pe(src)
+        output = self.encoder(src_pe)
+
+        # tgt = self.tgt_fc(tgt)
+        # tgt_pe = self.tgt_pe(tgt)
+        # output = self.decoder(tgt_pe, output)
+        return output
