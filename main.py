@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument('--attention_output', dest='attention_output', type=str, choices=['', 'cat', 'add'], default='') # '', 'cat', 'add'
 
     # learing rate setting(ReduceLROnPlateau(mode='min'))
-    parser.add_argument('--learning_rate', dest='learning_rate', type=float, default=math.sqrt(1e-8))
+    parser.add_argument('--learning_rate', dest='learning_rate', type=float, default=math.sqrt(1e-6))
     parser.add_argument('--min_learning_rate', dest='min_learning_rate', type=float, default=math.sqrt(1e-12))
     parser.add_argument('--patience', dest='patience', type=int, default=0)
     parser.add_argument('--cooldown', dest='cooldown', type=int, default=0)
