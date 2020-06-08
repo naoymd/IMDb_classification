@@ -20,7 +20,8 @@ class Positional_Encoding(nn.Module):
 
     def forward(self, input):
         """
-        input: (batch_size, seqence_length, dimension)
+        input: (batch_size, sequence_length, dimension)
+        output: (batch_size, sequence_length, dimension)
         """
         output = input + self.pe[:, :input.size(1), :]
         output = self.dropout(output)
@@ -51,16 +52,29 @@ class Transformer(nn.Module):
 
     def forward(self, src, tgt=None):
         """
-        src: Encoder側の入力
-        tgt: Decoder側の入力
+        Inputs:
+            src : (batch_size, source_sequence_length, dimension)
+            -> TransformerのEncoder側の入力
+            tgt : (batch_size, target_sequence_length, dimension)
+            -> TransformerのDecoder側の入力
+        Outputs:
+            output : (batch_size, target_sequence_length, dimension)
+            -> Transformerの最終出力
         """
         if tgt is None:
             tgt = src
+        
         src = self.src_fc(src)
-        src_pe = self.src_pe(src)
+        src_pe = self.src_pe(src).permute(1, 0, 2)
+        """ src : (source_sequence_length, batch_size, dimension) """        
         output = self.encoder(src_pe)
+        """ output : (source_sequence_length, batch_size, dimension) """
 
         # tgt = self.tgt_fc(tgt)
-        # tgt_pe = self.tgt_pe(tgt)
+        # tgt_pe = self.tgt_pe(tgt).permute(1, 0, 2)
+        """ tgt : (target_sequence_length, batch_size, dimension) """
         # output = self.decoder(tgt_pe, output)
+        """ output : (target_sequence_length, batch_size, dimension) """
+        output = output.permute(1, 0, 2)
+        """ output : (batch_size, target_sequence_length, dimension) """
         return output

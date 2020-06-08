@@ -141,5 +141,29 @@ class MultiheadAttention(nn.Module):
         query = input
         key = value = memory
 
+        query_squeeze = False
+        if len(query.size()) == 2:
+            query = query.unsqueeze(dim=1)
+            query_squeeze = True
+
+        query = query.permute(1, 0, 2)
+        key = key.permute(1, 0, 2)
+        value = value.permute(1, 0, 2)
+        """
+        query : (output_size, batch_size, dimension) or (1, batch_size, dimension)
+        key : (queried_size, batch_size, dimension)
+        value: (queried_size, batch_size, dimension)
+        """
+
         output, attention_map = self.multihead_attention(query, key, value)
+        output = output.permute(1, 0, 2)
+
+        if query_squeeze:
+            output = output.squeeze(dim=1)
+        """
+        output:
+            (batch_size, output_size, dimension) or (batch_size, dimension)
+        attention_map:
+            (batch_size, output_size, queried_size) or (batch_size, 1, queried_size)
+        """
         return output, attention_map
