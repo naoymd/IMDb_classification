@@ -4,8 +4,8 @@ import torch.nn.init as init
 import torch.nn.functional as F
 from rnn.my_encoder import *
 from rnn.my_decoder import *
-from rnn.transformer import *
-from rnn.my_attention import Attention
+from rnn.my_transformer import *
+from rnn.my_attention import *
 from rnn.tcn import MSResNet
 
 def l2norm(out):
@@ -13,16 +13,16 @@ def l2norm(out):
   return out / norm
 
 class Net(nn.Module):
-  def __init__(self, word_embeddings, args):
+  def __init__(self, word_embeddings, kwargs):
     super(Net, self).__init__()
-    self.rnn = args.rnn
-    bidirection = args.bidirection
-    self.attention_rnn = args.attention_rnn
-    self.self_attention = args.self_attention
-    batch_size = args.batch_size
-    input_size = args.input_size
-    hidden_size = args.hidden_size
-    output_size = args.output_size
+    self.rnn = kwargs.rnn
+    bidirection = kwargs.bidirection
+    self.attention_rnn = kwargs.attention_rnn
+    self.self_attention = kwargs.self_attention
+    batch_size = kwargs.batch_size
+    input_size = kwargs.input_size
+    hidden_size = kwargs.hidden_size
+    output_size = kwargs.output_size
     print('-'*50)
     print('rnn:', self.rnn)
     print('bidirection:', bidirection)
@@ -34,49 +34,49 @@ class Net(nn.Module):
     if self.rnn == 'GRU':
       if bidirection == True:
         if self.attention_rnn == True:
-          self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size, args)
-          self.decoder = Attention_Bidirectional_GRU_Decoder(batch_size, input_size, args)
+          self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size)
+          self.decoder = Attention_Bidirectional_GRU_Decoder(batch_size, input_size, **kwargs)
         else:
-          self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size, args)
-          self.decoder = Bidirectional_GRU_Decoder(batch_size, input_size, args)
+          self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size)
+          self.decoder = Bidirectional_GRU_Decoder(batch_size, input_size, **kwargs)
       else:
         if self.attention_rnn == True:
-          self.encoder = GRU_Encoder(batch_size, input_size, args)
-          self.decoder = Attention_GRU_Decoder(batch_size, input_size, args)
+          self.encoder = GRU_Encoder(batch_size, input_size)
+          self.decoder = Attention_GRU_Decoder(batch_size, input_size, **kwargs)
         else:
-          self.encoder = GRU_Encoder(batch_size, input_size, args)
-          self.decoder = GRU_Decoder(batch_size, input_size, args)
+          self.encoder = GRU_Encoder(batch_size, input_size)
+          self.decoder = GRU_Decoder(batch_size, input_size, **kwargs)
     elif self.rnn == 'LSTM':
       if bidirection == True:
         if self.attention_rnn == True:
-          self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size, args)
-          self.decoder = Attention_Bidirectional_LSTM_Decoder(batch_size, input_size, args)
+          self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size)
+          self.decoder = Attention_Bidirectional_LSTM_Decoder(batch_size, input_size, **kwargs)
         else:
-          self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size, args)
-          self.decoder = Bidirectional_LSTM_Decoder(batch_size, input_size, args)
+          self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size)
+          self.decoder = Bidirectional_LSTM_Decoder(batch_size, input_size, **kwargs)
       else:
         if self.attention_rnn == True:
-          self.encoder = LSTM_Encoder(batch_size, input_size, args)
-          self.decoder = Attention_LSTM_Decoder(batch_size, input_size, args)
+          self.encoder = LSTM_Encoder(batch_size, input_size)
+          self.decoder = Attention_LSTM_Decoder(batch_size, input_size, **kwargs)
         else:
-          self.encoder = LSTM_Encoder(batch_size, input_size, args)
-          self.decoder = LSTM_Decoder(batch_size, input_size, args)
+          self.encoder = LSTM_Encoder(batch_size, input_size)
+          self.decoder = LSTM_Decoder(batch_size, input_size, **kwargs)
     elif self.rnn == 'Transformer':
-      self.transformer = Transformer(args)
+      self.transformer = Transformer(input_size)
 
     if bidirection == True:
-      self.attention = Attention(hidden_size*2, args)
+      self.attention = Attention(hidden_size*2, **kwargs)
       self.fc = nn.Linear(hidden_size*2, output_size)
     else:
-      self.attention = Attention(hidden_size, args)
+      self.attention = Attention(hidden_size, **kwargs)
       self.fc = nn.Linear(hidden_size, output_size)
 
     if self.self_attention == True or self.rnn == 'Transformer':
-      self.length_fc = nn.Linear(args.fix_length, 1)
+      self.length_fc = nn.Linear(kwargs.fix_length, 1)
       init.xavier_uniform_(self.length_fc.weight)
     
     self.relu = nn.ReLU()
-    self.dropout = nn.Dropout(p=args.dropout)
+    self.dropout = nn.Dropout(p=kwargs.dropout)
     init.xavier_uniform_(self.fc.weight)
 
   def forward(self, x):
@@ -129,15 +129,15 @@ class Net(nn.Module):
     
 
 class Model(nn.Module):
-  def __init__(self, word_embeddings, args):
+  def __init__(self, word_embeddings, kwargs):
     super(Model, self).__init__()
-    self.rnn = args.rnn
-    self.bidirection = args.bidirection
-    self.self_attention = args.self_attention
-    batch_size = args.batch_size
-    input_size = args.input_size
-    hidden_size = args.hidden_size
-    output_size = args.output_size
+    self.rnn = kwargs.rnn
+    self.bidirection = kwargs.bidirection
+    self.self_attention = kwargs.self_attention
+    batch_size = kwargs.batch_size
+    input_size = kwargs.input_size
+    hidden_size = kwargs.hidden_size
+    output_size = kwargs.output_size
     print('-'*50)
     print('rnn:', self.rnn)
     print('bidirection:', self.bidirection)
@@ -147,30 +147,30 @@ class Model(nn.Module):
     self.embed = nn.Embedding.from_pretrained(embeddings=word_embeddings, freeze=True)
     if self.rnn == 'GRU':
       if self.bidirection == True:
-        self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size, args)
+        self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size)
       else:
-        self.encoder = GRU_Encoder(batch_size, input_size, args)
+        self.encoder = GRU_Encoder(batch_size, input_size)
     elif self.rnn == 'LSTM':
       if self.bidirection == True:
-        self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size, args)
+        self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size)
       else:
-        self.encoder = LSTM_Encoder(batch_size, input_size, args)
+        self.encoder = LSTM_Encoder(batch_size, input_size)
     elif self.rnn == 'Transformer':
-      self.transformer = Transformer(args)
+      self.transformer = Transformer(input_size)
 
     if self.bidirection == True:
-      self.attention = Attention(hidden_size*2, args)
+      self.attention = Attention(hidden_size*2, **kwargs)
       self.fc = nn.Linear(hidden_size*2, output_size)
     else:
-      self.attention = Attention(hidden_size, args)
+      self.attention = Attention(hidden_size, **kwargs)
       self.fc = nn.Linear(hidden_size, output_size)
 
     if self.self_attention == True or self.rnn == 'Transformer':
-      self.length_fc = nn.Linear(args.fix_length, 1)
+      self.length_fc = nn.Linear(kwargs.fix_length, 1)
       init.xavier_uniform_(self.length_fc.weight)
     
     self.relu = nn.ReLU()
-    self.dropout = nn.Dropout(p=args.dropout)
+    self.dropout = nn.Dropout(p=kwargs.dropout)
     init.xavier_uniform_(self.fc.weight)
 
   def forward(self, x):
@@ -220,14 +220,14 @@ class Model(nn.Module):
 
 
 class TCN(nn.Module):
-  def __init__(self, word_embeddings, args):
+  def __init__(self, word_embeddings, kwargs):
     super(TCN, self).__init__()
     self.embed = nn.Embedding.from_pretrained(embeddings=word_embeddings, freeze=True)
-    self.tcn = MSResNet(args.input_size, args)
-    self.length_fc = nn.Linear(args.fix_length, 1)
-    self.self_attention = args.self_attention
-    self.attention = Attention(args.hidden_size, args)
-    self.fc = nn.Linear(args.hidden_size, args.output_size)
+    self.tcn = MSResNet(kwargs.input_size, kwargs)
+    self.length_fc = nn.Linear(kwargs.fix_length, 1)
+    self.self_attention = kwargs.self_attention
+    self.attention = Attention(kwargs.hidden_size, **kwargs)
+    self.fc = nn.Linear(kwargs.hidden_size, kwargs.output_size)
 
   def forward(self, x):
     x = self.embed(x)
@@ -243,20 +243,20 @@ class TCN(nn.Module):
 
 
 class GRU_Layer(nn.Module):
-  def __init__(self, word_embeddings, args):
+  def __init__(self, word_embeddings, kwargs):
     super(GRU_Layer, self).__init__()
     print('-'*50)
-    print('bidirection:', args.bidirection)
-    print('self attention:', args.self_attention)
+    print('bidirection:', kwargs.bidirection)
+    print('self attention:', kwargs.self_attention)
     print('-'*50)
     self.embed = nn.Embedding.from_pretrained(embeddings=word_embeddings, freeze=True)
-    self.h0 = torch.zeros(1, args.batch_size, args.hidden_size)
-    self.gru = nn.GRU(args.input_size, args.hidden_size, num_layers=args.num_layers, batch_first=True, bidirectional=args.bidirection)
-    self.self_attention = args.self_attention
-    self.attention = Attention(args.hidden_size, args)
-    self.fc = nn.Linear(args.hidden_size, args.output_size)
+    self.h0 = torch.zeros(1, kwargs.batch_size, kwargs.hidden_size)
+    self.gru = nn.GRU(kwargs.input_size, kwargs.hidden_size, num_layers=kwargs.num_layers, batch_first=True, bidirectional=kwargs.bidirection)
+    self.self_attention = kwargs.self_attention
+    self.attention = Attention(kwargs.hidden_size, **kwargs)
+    self.fc = nn.Linear(kwargs.hidden_size, kwargs.output_size)
     self.relu = nn.ReLU()
-    self.dropout = nn.Dropout(p=args.dropout)
+    self.dropout = nn.Dropout(p=kwargs.dropout)
     init.xavier_uniform_(self.fc.weight)
 
   def forward(self, x):
