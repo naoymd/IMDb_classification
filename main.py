@@ -134,6 +134,7 @@ def train(train_iter, val_iter, net, criterion, optimizer, lr_scheduler, TEXT, C
             train_acc += (output.max(1)[1] == label).sum().item()
             # print(train_acc)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(net.parameters(), CONFIG.get('clip', 0.5))
             optimizer.step()
             # break
         lr_scheduler.step(loss)
@@ -158,13 +159,13 @@ def train(train_iter, val_iter, net, criterion, optimizer, lr_scheduler, TEXT, C
                 if CONFIG.self_attention:
                     output, attention_map = net(text)
                     if (
-                        epoch % 4 == 0 or epoch + 1 == CONFIG.batch_size
+                        epoch % 10 == 0 or epoch + 1 == CONFIG.epoch_num
                     ) and i % 1000 == 0:
                         for j in range(CONFIG.batch_size):
                             # heat_map = attention_map[j, :, :].permute(1, 0).cpu().detach().numpy().sum(axis=0, keepdims=True)
                             heat_map = attention_map[j, :, :].cpu().detach().numpy()
                             sentence = [TEXT.vocab.itos[data] for data in text[j, :]]
-                            name = str(epoch + 1) + "_" + str(i) + "_" + str(j)
+                            name = str(epoch+1) + "_" + str(i) + "_" + str(j)
                             # print('name', name)
                             # print('sentence', sentence)
                             if CONFIG.rnn == "Transformer":
@@ -220,6 +221,7 @@ def train(train_iter, val_iter, net, criterion, optimizer, lr_scheduler, TEXT, C
         plt.figure()
         plt.plot(train_loss_list, label="train")
         plt.plot(val_loss_list, label="val")
+        plt.yscale('log')
         plt.legend()
         plt.savefig(os.path.join(result_dir, "loss.png"))
         plt.close()
