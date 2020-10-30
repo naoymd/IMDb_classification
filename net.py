@@ -19,9 +19,9 @@ class Net(nn.Module):
     bidirection = kwargs.bidirection
     self.attention_rnn = kwargs.attention_rnn
     self.self_attention = kwargs.self_attention
-    batch_size = kwargs.batch_size
     input_size = kwargs.input_size
     hidden_size = kwargs.hidden_size
+    num_layers = kwargs.num_layers
     output_size = kwargs.output_size
     print('-'*50)
     print('rnn:', self.rnn)
@@ -34,35 +34,50 @@ class Net(nn.Module):
     if self.rnn == 'GRU':
       if bidirection == True:
         if self.attention_rnn == True:
-          self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size)
-          self.decoder = Attention_Bidirectional_GRU_Decoder(batch_size, input_size, **kwargs)
+          self.encoder = Bidirectional_GRU_Encoder(input_size, hidden_size, num_layers)
+          self.decoder = Attention_Bidirectional_GRU_Decoder(input_size, hidden_size, num_layers)
         else:
-          self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size)
-          self.decoder = Bidirectional_GRU_Decoder(batch_size, input_size, **kwargs)
+          self.encoder = Bidirectional_GRU_Encoder(input_size, hidden_size, num_layers)
+          self.decoder = Bidirectional_GRU_Decoder(input_size, hidden_size, num_layers)
       else:
         if self.attention_rnn == True:
-          self.encoder = GRU_Encoder(batch_size, input_size)
-          self.decoder = Attention_GRU_Decoder(batch_size, input_size, **kwargs)
+          self.encoder = GRU_Encoder(input_size, hidden_size, num_layers)
+          self.decoder = Attention_GRU_Decoder(input_size, hidden_size, num_layers)
         else:
-          self.encoder = GRU_Encoder(batch_size, input_size)
-          self.decoder = GRU_Decoder(batch_size, input_size, **kwargs)
+          self.encoder = GRU_Encoder(input_size, hidden_size, num_layers)
+          self.decoder = GRU_Decoder(input_size, hidden_size, num_layers)
+    elif self.rnn == 'GRU_':
+      if kwargs.skip:
+        self.encoder = GRU_Encoder_(input_size, hidden_size, num_layers, bidirection)
+        self.decoder = GRU_Skip_Decoder_(input_size, hidden_size, num_layers, bidirection)
+      else:
+        self.encoder = GRU_Encoder_(input_size, hidden_size, num_layers, bidirection)
+        self.decoder = GRU_Decoder_(input_size, hidden_size, num_layers, bidirection)
     elif self.rnn == 'LSTM':
       if bidirection == True:
         if self.attention_rnn == True:
-          self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size)
-          self.decoder = Attention_Bidirectional_LSTM_Decoder(batch_size, input_size, **kwargs)
+          self.encoder = Bidirectional_LSTM_Encoder(input_size, hidden_size, num_layers)
+          self.decoder = Attention_Bidirectional_LSTM_Decoder(input_size, hidden_size, num_layers)
         else:
-          self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size)
-          self.decoder = Bidirectional_LSTM_Decoder(batch_size, input_size, **kwargs)
+          self.encoder = Bidirectional_LSTM_Encoder(input_size, hidden_size, num_layers)
+          self.decoder = Bidirectional_LSTM_Decoder(input_size, hidden_size, num_layers)
       else:
         if self.attention_rnn == True:
-          self.encoder = LSTM_Encoder(batch_size, input_size)
-          self.decoder = Attention_LSTM_Decoder(batch_size, input_size, **kwargs)
+          self.encoder = LSTM_Encoder(input_size, hidden_size, num_layers)
+          self.decoder = Attention_LSTM_Decoder(input_size, hidden_size, num_layers)
         else:
-          self.encoder = LSTM_Encoder(batch_size, input_size)
-          self.decoder = LSTM_Decoder(batch_size, input_size, **kwargs)
+          self.encoder = LSTM_Encoder(input_size, hidden_size, num_layers)
+          self.decoder = LSTM_Decoder(input_size, hidden_size, num_layers)
+    elif self.rnn == 'LSTM_':
+      if kwargs.skip:
+        self.encoder = LSTM_Encoder_(input_size, hidden_size, num_layers, bidirection)
+        self.decoder = LSTM_Skip_Decoder_(input_size, hidden_size, num_layers, bidirection)
+      else:
+        self.encoder = LSTM_Encoder_(input_size, hidden_size, num_layers, bidirection)
+        self.decoder = LSTM_Decoder_(input_size, hidden_size, num_layers, bidirection)
     elif self.rnn == 'Transformer':
-      self.transformer = Transformer(input_size)
+      self.transformer = Transformer(input_size, hidden_size, num_layers)
+      self.pool = nn.AdaptiveAvgPool1d(1)
 
     if bidirection == True:
       self.attention = Attention(hidden_size*2, **kwargs)
@@ -70,153 +85,148 @@ class Net(nn.Module):
     else:
       self.attention = Attention(hidden_size, **kwargs)
       self.fc = nn.Linear(hidden_size, output_size)
-
-    if self.self_attention == True or self.rnn == 'Transformer':
-      self.length_fc = nn.Linear(kwargs.fix_length, 1)
-      init.xavier_uniform_(self.length_fc.weight)
     
     self.relu = nn.ReLU()
+    self.prelu = nn.PReLU()
+    self.softmax = nn.Softmax(dim=-1)
     self.dropout = nn.Dropout(p=kwargs.dropout)
     init.xavier_uniform_(self.fc.weight)
+
 
   def forward(self, x):
     # print('x', x.size())
     embed = self.embed(x)
     # print('embed', embed.size())
 
-    if self.rnn == 'GRU':
+    if 'GRU' in self.rnn:
       out, h = self.encoder(embed)
-      out, h = self.decoder(embed, out, h)
-      # out = l2norm(out)
-      # h = l2norm(h)
+      out, h = self.decoder(embed, h, out)
+      out = l2norm(out)
+      h = l2norm(h)
       # print('decoder', out.size(), h.size())
-    elif  self.rnn == 'LSTM':
+    elif  'LSTM' in self.rnn:
       out, h = self.encoder(embed)
-      out, h = self.decoder(embed, out, h)
+      out, h = self.decoder(embed, h, out)
       h, _ = h
-      # out = l2norm(out)
-      # h = l2norm(h)
-    elif self.rnn == 'Transformer':
+      out = l2norm(out)
+      h = l2norm(h)
+    elif 'Transformer' in self.rnn:
       out = self.transformer(embed)
-      # out = l2norm(out)
-
+      out = l2norm(out)
+      h = self.pool(out.permute(0, 2, 1)).squeeze()
+    
     if self.self_attention:
-      if self.rnn == 'GRU' or self.rnn =='LSTM':
-        out, attention_map = self.attention(h, out)
-        # print('self attention', out.size(), attention_map.size())
-      elif self.rnn == 'Transformer':
-        out, attention_map = self.attention(out, out)
-        out = self.length_fc(out.permute(0, 2, 1)).squeeze(dim=2)
-        # print('self attention', out.size(), attention_map.size())
+      out, attention_map = self.attention(h, out)
+      # print('self attention', out.size())
     else:
-      if self.rnn == 'GRU' or self.rnn == 'LSTM':
-        out = h
-        # print('length fc', out.size())
-      elif self.rnn == 'Transformer':
-        out = self.length_fc(out.permute(0, 2, 1)).suqueeze(dim=2)
-        # print('length_fc', out.size())
-
-    out = self.fc(out)
-    # print('fc', out.size())
-    out = self.relu(out)
-    # print('relu', out.size())
+      out = h
+    
     out = self.dropout(out)
     # print('dropout', out.size())
+    out = self.fc(out)
+    # print('fc', out.size())
+    # out = self.relu(out)
+    # print('relu', out.size())
+    out = self.prelu(out)
+    # print('prelu', out.size())
+    # out = self.softmax(out)
+    # print('softmax', out.size())
     if self.self_attention:
       return out, attention_map
     else:
       return out
     
+
 
 class Model(nn.Module):
   def __init__(self, word_embeddings, kwargs):
     super(Model, self).__init__()
     self.rnn = kwargs.rnn
-    self.bidirection = kwargs.bidirection
+    bidirection = kwargs.bidirection
     self.self_attention = kwargs.self_attention
-    batch_size = kwargs.batch_size
     input_size = kwargs.input_size
     hidden_size = kwargs.hidden_size
+    num_layers = kwargs.num_layers
     output_size = kwargs.output_size
     print('-'*50)
     print('rnn:', self.rnn)
-    print('bidirection:', self.bidirection)
+    print('bidirection:', bidirection)
     print('self attention:', self.self_attention)
     print('-'*50)
 
     self.embed = nn.Embedding.from_pretrained(embeddings=word_embeddings, freeze=True)
     if self.rnn == 'GRU':
-      if self.bidirection == True:
-        self.encoder = Bidirectional_GRU_Encoder(batch_size, input_size)
+      if bidirection == True:
+        self.encoder = Bidirectional_GRU_Encoder(input_size, hidden_size, num_layers)
       else:
-        self.encoder = GRU_Encoder(batch_size, input_size)
+        self.encoder = GRU_Encoder(input_size, hidden_size, num_layers)
+    elif self.rnn == 'GRU_':
+      self.encoder = GRU_Encoder_(input_size, hidden_size, num_layers, bidirection)
     elif self.rnn == 'LSTM':
-      if self.bidirection == True:
-        self.encoder = Bidirectional_LSTM_Encoder(batch_size, input_size)
+      if bidirection == True:
+        self.encoder = Bidirectional_LSTM_Encoder(input_size, hidden_size, num_layers)
       else:
-        self.encoder = LSTM_Encoder(batch_size, input_size)
+        self.encoder = LSTM_Encoder(input_size, hidden_size, num_layers)
+    elif self.rnn == 'LSTM_':
+      self.encoder = LSTM_Encoder_(input_size, hidden_size, num_layers, bidirection)
     elif self.rnn == 'Transformer':
-      self.transformer = Transformer(input_size)
+      self.transformer = Transformer_Encoder(input_size, hidden_size, num_layers)
+      self.pool = nn.AdaptiveAvgPool1d(1)
 
-    if self.bidirection == True:
+    if bidirection == True:
       self.attention = Attention(hidden_size*2, **kwargs)
       self.fc = nn.Linear(hidden_size*2, output_size)
     else:
       self.attention = Attention(hidden_size, **kwargs)
       self.fc = nn.Linear(hidden_size, output_size)
-
-    if self.self_attention == True or self.rnn == 'Transformer':
-      self.length_fc = nn.Linear(kwargs.fix_length, 1)
-      init.xavier_uniform_(self.length_fc.weight)
     
     self.relu = nn.ReLU()
+    self.prelu = nn.PReLU()
+    self.softmax = nn.Softmax(dim=-1)
     self.dropout = nn.Dropout(p=kwargs.dropout)
     init.xavier_uniform_(self.fc.weight)
+
 
   def forward(self, x):
     # print('x', x.size())
     embed = self.embed(x)
     # print('embed', embed.size())
 
-    if self.rnn == 'GRU':
+    if 'GRU' in self.rnn:
       out, h = self.encoder(embed)
-      # out = l2norm(out)
-      # h = l2norm(h)
-    elif  self.rnn == 'LSTM':
+      out = l2norm(out)
+      h = l2norm(h)
+    elif 'LSTM' in self.rnn:
       out, h = self.encoder(embed)
-      out, _ = out
       h, _ = h
-      # out = l2norm(out)
-      # h = l2norm(h)
-    elif self.rnn == 'Transformer':
+      out = l2norm(out)
+      h = l2norm(h)
+    elif 'Transformer' in self.rnn:
       out = self.transformer(embed)
-      # out = l2norm(out)
+      out = l2norm(out)
+      h = self.pool(out.permute(0, 2, 1)).squeeze()
     
     if self.self_attention:
-      if self.rnn == 'GRU' or self.rnn == 'LSTM':
-        out, attention_map = self.attention(h, out)
-        # print('self attention', out.size())
-      elif self.rnn == 'Transformer':
-        out, attention_map = self.attention(out, out)
-        out = self.length_fc(out.permute(0, 2, 1)).squeeze(dim=2)
-        # print('self attention', out.size())
+      out, attention_map = self.attention(h, out)
+      # print('self attention', out.size())
     else:
-      if self.rnn == 'GRU' or self.rnn == 'LSTM':
-        out = h
-      elif self.rnn == 'Transformer':
-        out = self.length_fc(out.permute(0, 2, 1)).squeeze(dim=2)
-        # print('length_fc', out.size())
+      out = h
     
-    out = self.fc(out)
-    # print('fc', out.size())
-    out = self.relu(out)
-    # print('relu', out.size())
     out = self.dropout(out)
     # print('dropout', out.size())
+    out = self.fc(out)
+    # print('fc', out.size())
+    # out = self.relu(out)
+    # print('relu', out.size())
+    out = self.prelu(out)
+    # print('prelu', out.size())
+    # out = self.softmax(out)
+    # print('softmax', out.size())
     if self.self_attention:
       return out, attention_map
     else:
       return out
+
 
 
 class TCN(nn.Module):
@@ -229,6 +239,7 @@ class TCN(nn.Module):
     self.attention = Attention(kwargs.hidden_size, **kwargs)
     self.fc = nn.Linear(kwargs.hidden_size, kwargs.output_size)
 
+
   def forward(self, x):
     x = self.embed(x)
     x = self.tcn(x)
@@ -238,8 +249,9 @@ class TCN(nn.Module):
       out = F.relu(self.fc(out))
       return out, attention_map
     else:
-      out = F.relu(self.fc(out))
+      out = F.softmax(F.relu(self.fc(out)))
       return out
+
 
 
 class GRU_Layer(nn.Module):
@@ -258,6 +270,7 @@ class GRU_Layer(nn.Module):
     self.relu = nn.ReLU()
     self.dropout = nn.Dropout(p=kwargs.dropout)
     init.xavier_uniform_(self.fc.weight)
+
 
   def forward(self, x):
     x = self.embed(x)
