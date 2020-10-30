@@ -2,6 +2,7 @@
 import os, sys
 import time
 import pprint
+import shutil
 import math
 import numpy as np
 import torch
@@ -81,14 +82,17 @@ def train(train_iter, val_iter, net, criterion, optimizer, lr_scheduler, TEXT, C
     val_acc_list = []
     best_loss = 100
     result_dir = os.path.join("./result")
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
+    if os.path.exists(result_dir):
+        shutil.rmtree(result_dir)
+    os.makedirs(result_dir, exist_ok=True)
     save_dir = os.path.join("./result/heatmap/val")
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    if os.path.exists(save_dir):
+        shutil.rmtree(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
     checkpoint_dir = os.path.join("./checkpoint")
     if not os.path.exists(checkpoint_dir):
-        os.makedirs(checkpoint_dir)
+        shutil.rmtree(checkpoint_dir)
+    os.makedirs(checkpoint_dir, exist_ok=True)
     for epoch in range(CONFIG.epoch_num):
         start = time.time()
         train_loss = train_acc = val_loss = val_acc = 0
@@ -231,8 +235,9 @@ def test(test_iter, net, TEXT, CONFIG):
     print("start test")
     start = time.time()
     save_dir = os.path.join("./result/heatmap/test")
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    if os.path.exists(save_dir):
+        shutil.rmtree(save_dir)
+    os.makedirs(save_dir, exist_ok=True)
     checkpoint_path = os.path.join("./checkpoint", "checkpoint.pth")
     net.load_state_dict(torch.load(checkpoint_path))
     net.eval()
