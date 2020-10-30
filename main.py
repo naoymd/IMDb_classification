@@ -217,18 +217,19 @@ def train(train_iter, val_iter, net, criterion, optimizer, lr_scheduler, TEXT, C
                 },
                 step=epoch,
             )
+        plt.figure()
+        plt.plot(train_loss_list, label="train")
+        plt.plot(val_loss_list, label="val")
+        plt.legend()
+        plt.savefig(os.path.join(result_dir, "loss.png"))
+        plt.close()
+        plt.figure()
+        plt.plot(train_acc_list, label="train")
+        plt.plot(val_acc_list, label="val")
+        plt.legend()
+        plt.savefig(os.path.join(result_dir, "acc.png"))
+        plt.close()
         # break
-
-    plt.figure()
-    plt.plot(train_loss_list, label="train")
-    plt.plot(val_loss_list, label="val")
-    plt.legend()
-    plt.savefig(os.path.join(result_dir, "loss.png"))
-    plt.figure()
-    plt.plot(train_acc_list, label="train")
-    plt.plot(val_acc_list, label="val")
-    plt.legend()
-    plt.savefig(os.path.join(result_dir, "acc.png"))
 
 
 def test(test_iter, net, TEXT, CONFIG):
