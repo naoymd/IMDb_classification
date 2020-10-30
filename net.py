@@ -173,7 +173,7 @@ class Model(nn.Module):
       self.transformer = Transformer_Encoder(input_size, hidden_size, num_layers)
       self.pool = nn.AdaptiveAvgPool1d(1)
 
-    if bidirection == True:
+    if bidirection == True and self.rnn != 'Transformer':
       self.attention = Attention(hidden_size*2, **kwargs)
       self.fc = nn.Linear(hidden_size*2, output_size)
     else:
