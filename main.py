@@ -1,3 +1,4 @@
+#-*- coding:utf-8 -*-
 import os, sys
 import time
 import pprint
@@ -115,12 +116,14 @@ def train(train_iter, val_iter, net, criterion, optimizer, lr_scheduler, TEXT, C
                 # print(attention_map.size())
             else:
                 output = net(text)
-            # print('output')
-            # print(output.size())
-            # print(output)
-            # print(output.max(1))
-            # print('label')
-            # print(label.size())
+            # if i % 500 == 0:
+            #     print('output')
+            #     print(output.size())
+            #     print(output)
+            #     # print(output.max(1))
+            #     print('label')
+            #     print(label.size())
+            #     print(label)
             loss = criterion(output, label)
             train_loss += loss.item()
             # print(train_loss)
