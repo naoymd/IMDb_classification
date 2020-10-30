@@ -9,7 +9,7 @@ from typing import Dict, Any, Tuple
 
 
 def draw_heatmap(data_map, row_labels, column_labels, save_dir=None, name=None):
-    fig, ax = plt.subplots(figsize=(20, 1))
+    fig, ax = plt.subplots(figsize=(50, 1))
     heatmap = ax.pcolor(data_map, cmap=plt.cm.Blues)
 
     ax.set_xticks(np.arange(data_map.shape[1]) + 0.5, minor=False)
