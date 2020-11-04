@@ -36,7 +36,7 @@ def parse_args():
 
 
 def draw_heatmap(data, row_labels, column_labels, save_dir=None, name=None):
-    fig, ax = plt.subplots(figsize=(20, 1))
+    fig, ax = plt.subplots(figsize=(40, 1))
     heatmap = ax.pcolor(data, cmap=plt.cm.Blues)
 
     ax.set_xticks(np.arange(data.shape[1]) + 0.5, minor=False)
