@@ -1,8 +1,8 @@
 # general settings
-epoch_num: 10
+epoch_num: 20
 batch_size: 32
 num_workers: 0
-fix_length: 100
+fix_length: 200
 min_freq: 10
 input_size: 300
 output_size: 2
@@ -11,7 +11,7 @@ output_size: 2
 model: model
 rnn: GRU_
 attention_rnn: False
-bidirection: False
+bidirection: True
 num_layers: 1
 hidden_size: 512
 skip: False
@@ -32,3 +32,4 @@ patience: 0
 cooldown: 0
 factor: 0.1
 weight_decay: 1e-4
+clip: 0.5
