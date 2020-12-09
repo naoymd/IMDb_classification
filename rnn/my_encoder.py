@@ -34,15 +34,16 @@ class GRU_Encoder(nn.Module):
     def forward(self, input, seq_length=None):
         seq_len = input.size(1)
         h0 = torch.zeros(input.size(0), self.hidden_size).to(input.device)
-        h_in = [h0]*self.num_layers
+        h_in = [h0] * self.num_layers
         out = []
         for i in range(seq_len):
-            h = input[:, i, :]
+            h_i = input[:, i, :]
             for j, layer in enumerate(self.gru):
-                h = layer(h, h_in[j])
-                h_in[j] = h
-            out.append(h)
+                h_i = layer(h_i, h_in[j])
+                h_in[j] = h_i
+            out.append(h_i)
         out = torch.stack(out, dim=1)
+        h = torch.stack(h_in, dim=0)
         return out, h
 
 
@@ -80,23 +81,21 @@ class Bidirectional_GRU_Encoder(nn.Module):
                 h_b = layer_b(h_b, h_b_in[j])
                 h_f_in[j] = h_f
                 h_b_in[j] = h_b
-            h = torch.cat([h_f, h_b], dim=1)
             out_f.append(h_f)
             out_b.append(h_b)
         out_f = torch.stack(out_f, dim=1)
         out_b = torch.stack(out_b, dim=1)
         out_b = self.reverse(out_b)
         out = torch.cat([out_f, out_b], dim=2)
+        h_f_out = torch.stack(h_f_in, dim=0)
+        h_b_out = torch.stack(h_b_in, dim=0)
+        h = torch.cat([h_f_out, h_b_out], dim=2)
         return out, h
 
 
 class GRU_Encoder_(nn.Module):
     def __init__(self, input_size, hidden_size=512, num_layers=1, bidirectional=False):
         super().__init__()
-        if bidirectional:
-            self.hidden_size = hidden_size * 2
-        else:
-            self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.padidx = 0
         self.gru = nn.GRU(
@@ -108,21 +107,16 @@ class GRU_Encoder_(nn.Module):
         )
 
     def forward(self, input, seq_length=None):
-        input_size = input.size(0)
+        batch_size = input.size(0)
         if seq_length is not None:
             # input: PackedSequence of (batch_size, seq_length, input_size)
             input = pack_padded_sequence(input, seq_length, batch_first=True, enforce_sorted=False)
         output, h = self.gru(input)
-        h = h.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
-        # output: (batch_size, seq_length, self.hidden_size)
-        # h: (batch_size, num_layers, self.hidden_size)
+        h = h.reshape(self.num_layers, batch_size, -1)
+        # output: (batch_size, seq_length, hidden_size)
+        # h: (num_layers, batch_size, hidden_size)
         if seq_length is not None:
-            out, lengths = pad_packed_sequence(output, batch_first=True, padding_value=self.padidx)
-            # lengths: (batch_size, 1, self.hidden_size)
-            lengths = lengths.reshape(-1, 1, 1).expand(-1, -1, self.hidden_size) - 1
-            # h: (batch_size, 1, self.hidden_size)
-            h = torch.gather(out, 1, lengths)
-        h = h.reshape(input_size, -1)
+            output, lengths = pad_packed_sequence(output, batch_first=True, padding_value=self.padidx)
         return output, h
 
 
@@ -141,17 +135,19 @@ class LSTM_Encoder(nn.Module):
         seq_len = input.size(1)
         h0 = torch.zeros(input.size(0), self.hidden_size).to(input.device)
         c0 = torch.zeros(input.size(0), self.hidden_size).to(input.device)
-        h_in = [h0]*self.num_layers
-        c_in = [c0]*self.num_layers
+        h_in = [h0] * self.num_layers
+        c_in = [c0] * self.num_layers
         out = []
         for i in range(seq_len):
-            h = input[:, i, :]
+            h_i = input[:, i, :]
             for j, layer in enumerate(self.lstm):
-                h, c = layer(h, (h_in[j], c_in[j]))
-                h_in[j] = h
-                c_in[j] = c
-            out.append(h)
+                h_i, c_i = layer(h_i, (h_in[j], c_in[j]))
+                h_in[j] = h_i
+                c_in[j] = c_i
+            out.append(h_i)
         out = torch.stack(out, dim=1)
+        h = torch.stack(h_in, dim=0)
+        c = torch.stack(c_in, dim=0)
         return out, (h, c)
 
 
@@ -194,14 +190,18 @@ class Bidirectional_LSTM_Encoder(nn.Module):
                 h_b_in[j] = h_b
                 c_f_in[j] = c_f
                 c_b_in[j] = c_b
-            h = torch.cat([h_f, h_b], dim=1)
-            c = torch.cat([c_f, c_b], dim=1)
             out_f.append(h_f)
             out_b.append(h_b)
         out_f = torch.stack(out_f, dim=1)
         out_b = torch.stack(out_b, dim=1)
         out_b = self.reverse(out_b)
         out = torch.cat([out_f, out_b], dim=2)
+        h_f_out = torch.stack(h_f_in, dim=0)
+        h_b_out = torch.stack(h_b_in, dim=0)
+        c_f_out = torch.stack(h_f_in, dim=0)
+        c_b_out = torch.stack(h_b_in, dim=0)
+        h = torch.cat([h_f_out, h_b_out], dim=2)
+        c = torch.cat([c_f_out, c_b_out], dim=2)
         return out, (h, c)
 
 
@@ -223,22 +223,15 @@ class LSTM_Encoder_(nn.Module):
         )
 
     def forward(self, input, seq_length=None):
-        input_size = input.size(0)
+        batch_size = input.size(0)
         if seq_length is not None:
             # input: PackedSequence of (batch_size, seq_length, input_size)
             input = pack_padded_sequence(input, seq_length, batch_first=True, enforce_sorted=False)
         output, (h, c) = self.lstm(input)
-        h = h.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
-        c = c.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
+        h = h.reshape(self.num_layers, batch_size, -1)
+        c = c.reshape(self.num_layers, batch_size, -1)
         # output: (batch_size, seq_length, self.hidden_size)
-        # h, c: (batch_size, num_layers, self.hidden_size)
+        # h, c: (num_layers, batch_size, self.hidden_size)
         if seq_length is not None:
             out, lengths = pad_packed_sequence(output, batch_first=True, padding_value=self.padidx)
-            # lengths: (batch_size, 1, self.hidden_size)
-            lengths = lengths.reshape(-1, 1, 1).expand(-1, -1, self.hidden_size) - 1
-            # h: (batch_size, 1, self.hidden_size)
-            h = torch.gather(out, 1, lengths)
-            c = c[:, -1, :]
-        h = h.reshape(input_size, -1)
-        c = c.reshape(input_size, -1)
         return output, (h, c)

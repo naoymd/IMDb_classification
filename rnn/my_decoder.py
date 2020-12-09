@@ -28,7 +28,7 @@ Outputs:
 """
 
 class GRU_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -42,21 +42,23 @@ class GRU_Decoder(nn.Module):
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
         seq_len = input.size(1)
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-        h_in = [encoder_h] * self.num_layers
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            encoder_h = encoder_h.permute(1, 0, 2)
+        h_in = [encoder_h[i, :, :] for i in range(self.num_layers)]
         out = []
         for i in range(seq_len):
-            h = input[:, i, :]
+            h_i = input[:, i, :]
             for j, layer in enumerate(self.gru):
-                h = layer(h, h_in[j])
-                h_in[j] = h
-            out.append(h)
+                h_i = layer(h_i, h_in[j])
+                h_in[j] = h_i
+            out.append(h_i)
         out = torch.stack(out, dim=1)
+        h = torch.stack(h_in, dim=0)
         return out, h
 
 
 class Bidirectional_GRU_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -77,9 +79,10 @@ class Bidirectional_GRU_Decoder(nn.Module):
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
         seq_len = input.size(1)
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-        h_f_in = [encoder_h[:, :self.hidden_size]] * self.num_layers
-        h_b_in = [encoder_h[:, self.hidden_size:]] * self.num_layers
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            encoder_h = encoder_h.permute(1, 0, 2)
+        h_f_in = [encoder_h[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        h_b_in = [encoder_h[i, :, self.hidden_size:] for i in range(self.num_layers)]
         reverse_input = self.reverse(input)
         out_f = []
         out_b = []
@@ -91,18 +94,20 @@ class Bidirectional_GRU_Decoder(nn.Module):
                 h_b = layer_b(h_b, h_b_in[j])
                 h_f_in[j] = h_f
                 h_b_in[j] = h_b
-            h = torch.cat([h_f, h_b], dim=1)
             out_f.append(h_f)
             out_b.append(h_b)
         out_f = torch.stack(out_f, dim=1)
         out_b = torch.stack(out_b, dim=1)
         out_b = self.reverse(out_b)
         out = torch.cat([out_f, out_b], dim=2)
+        h_f_out = torch.stack(h_f_in, dim=0)
+        h_b_out = torch.stack(h_b_in, dim=0)
+        h = torch.cat([h_f_out, h_b_out], dim=2)
         return out, h
 
 
 class Attention_GRU_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -117,23 +122,25 @@ class Attention_GRU_Decoder(nn.Module):
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
         seq_len = input.size(1)
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-        h_in = [encoder_h] * self.num_layers
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            encoder_h = encoder_h.permute(1, 0, 2)
+        h_in = [encoder_h[i, :, :] for i in range(self.num_layers)]
         out = []
         for i in range(seq_len):
-            h = input[:, i, :]
+            h_i = input[:, i, :]
             for j, layer in enumerate(self.gru):
-                h = layer(h, h_in[j])
-                h_in[j] = h
+                h_i = layer(h_i, h_in[j])
+                h_in[j] = h_i
             if encoder_out is not None:
-                h, _ = self.rnn_attention(h, encoder_out)
-            out.append(h)
+                h_i, _ = self.rnn_attention(h_i, encoder_out)
+            out.append(h_i)
         out = torch.stack(out, dim=1)
+        h = torch.stack(h_in, dim=0)
         return out, h
 
 
 class Attention_Bidirectional_GRU_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -155,9 +162,10 @@ class Attention_Bidirectional_GRU_Decoder(nn.Module):
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
         seq_len = input.size(1)
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-        h_f_in = [encoder_h[:, :self.hidden_size]] * self.num_layers
-        h_b_in = [encoder_h[:, self.hidden_size:]] * self.num_layers
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            encoder_h = encoder_h.permute(1, 0, 2)
+        h_f_in = [encoder_h[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        h_b_in = [encoder_h[i, :, self.hidden_size:] for i in range(self.num_layers)]
         reverse_input = self.reverse(input)
         out_f = []
         out_b = []
@@ -169,20 +177,23 @@ class Attention_Bidirectional_GRU_Decoder(nn.Module):
                 h_b = layer_b(h_b, h_b_in[j])
                 h_f_in[j] = h_f
                 h_b_in[j] = h_b
-            h = torch.cat([h_f, h_b], dim=1)
+            h_i = torch.cat([h_f, h_b], dim=1)
             if encoder_out is not None:
-                h, _ = self.rnn_attention(h, encoder_out)
-            out_f.append(h_f)
-            out_b.append(h_b)
+                h_i, _ = self.rnn_attention(h_i, encoder_out)
+            out_f.append(h_i[:, :self.hidden_size])
+            out_b.append(h_i[:, self.hidden_size:])
         out_f = torch.stack(out_f, dim=1)
         out_b = torch.stack(out_b, dim=1)
         out_b = self.reverse(out_b)
         out = torch.cat([out_f, out_b], dim=2)
+        h_f_out = torch.stack(h_f_in, dim=0)
+        h_b_out = torch.stack(h_b_in, dim=0)
+        h = torch.cat([h_f_out, h_b_out], dim=2)
         return out, h
 
 
 class Modal_Attention_GRU_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -198,24 +209,26 @@ class Modal_Attention_GRU_Decoder(nn.Module):
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
         seq_len = input.size(1)
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
             encoder_out, _ = self.out_attention(encoder_out, encoder_out)
-        h_in = [encoder_h] * self.num_layers
+            encoder_h = encoder_h.permute(1, 0, 2)
+        h_in = [encoder_h[i, :, :] for i in range(self.num_layers)]
         out = []
         for i in range(seq_len):
-            h = input[:, i, :]
+            h_i = input[:, i, :]
             for j, layer in enumerate(self.gru):
-                h = layer(h, h_in[j])
-                h_in[j] = h
+                h_i = layer(h_i, h_in[j])
+                h_in[j] = h_i
             if encoder_out is not None:
-                h, _ = self.rnn_attention(h, encoder_out)
-            out.append(h)
+                h_i, _ = self.rnn_attention(h_i, encoder_out)
+            out.append(h_i)
         out = torch.stack(out, dim=1)
+        h = torch.stack(h_in, dim=0)
         return out, h
 
 
 class Modal_Attention_Bidirectional_GRU_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -238,10 +251,11 @@ class Modal_Attention_Bidirectional_GRU_Decoder(nn.Module):
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
         seq_len = input.size(1)
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
             encoder_out, _ = self.out_attention(encoder_out, encoder_out)
-        h_f_in = [encoder_h[:, :self.hidden_size]] * self.num_layers
-        h_b_in = [encoder_h[:, self.hidden_size:]] * self.num_layers
+            encoder_h = encoder_h.permute(1, 0, 2)
+        h_f_in = [encoder_h[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        h_b_in = [encoder_h[i, :, self.hidden_size:] for i in range(self.num_layers)]
         reverse_input = self.reverse(input)
         out_f = []
         out_b = []
@@ -253,26 +267,26 @@ class Modal_Attention_Bidirectional_GRU_Decoder(nn.Module):
                 h_b = layer_b(h_b, h_b_in[j])
                 h_f_in[j] = h_f
                 h_b_in[j] = h_b
-            h = torch.cat([h_f, h_b], dim=1)
+            h_i = torch.cat([h_f, h_b], dim=1)
             if encoder_out is not None:
-                h, _ = self.rnn_attention(h, encoder_out)
-            out_f.append(h_f)
-            out_b.append(h_b)
+                h_i, _ = self.rnn_attention(h_i, encoder_out)
+            out_f.append(h_i[:, :self.hidden_size])
+            out_b.append(h_i[:, self.hidden_size:])
         out_f = torch.stack(out_f, dim=1)
         out_b = torch.stack(out_b, dim=1)
         out_b = self.reverse(out_b)
         out = torch.cat([out_f, out_b], dim=2)
+        h_f_out = torch.stack(h_f_in, dim=0)
+        h_b_out = torch.stack(h_b_in, dim=0)
+        h = torch.cat([h_f_out, h_b_out], dim=2)
         return out, h
 
 
 class GRU_Decoder_(nn.Module):
     def __init__(self, input_size, hidden_size=512, num_layers=1, bidirectional=False):
         super().__init__()
-        if bidirectional:
-            self.hidden_size = hidden_size * 2
-        else:
-            self.hidden_size = hidden_size
         self.num_layers = num_layers
+        self.hidden_size = hidden_size
         self.padidx = 0
         self.gru = nn.GRU(
             input_size,
@@ -281,36 +295,29 @@ class GRU_Decoder_(nn.Module):
             bidirectional = bidirectional,
             batch_first = True
         )
-        self.rnn_attention = Attention(self.hidden_size, output_mode='concat')
+        self.rnn_attention = Attention(hidden_size, output_mode='concat')
 
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
-        input_size = input.size(0)
+        batch_size = input.size(0)
+        encoder_h = encoder_h.reshape(-1, batch_size, self.hidden_size)
         if seq_length is not None:
             # input: PackedSequence of (batch_size, seq_length, input_size)
             input = pack_padded_sequence(input, seq_length, batch_first=True, enforce_sorted=False)
         output, h = self.gru(input, encoder_h)
-        h = h.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
-        # output: (batch_size, seq_length, self.hidden_size)
-        # h: (batch_size, num_layers, self.hidden_size)
+        h = h.reshape(self.num_layers, batch_size, -1)
+        # output: (batch_size, seq_length, hidden_size)
+        # h: (num_layers, batch_size, hidden_size)
         if seq_length is not None:
             out, lengths = pad_packed_sequence(output, batch_first=True, padding_value=self.padidx)
-            # lengths: (batch_size, 1, self.hidden_size)
-            lengths = lengths.reshape(-1, 1, 1).expand(-1, -1, self.hidden_size) - 1
-            # h: (batch_size, 1, self.hidden_size)
-            h = torch.gather(out, 1, lengths)
-        h = h.reshape(input_size, -1)
         if encoder_out is not None:
             output, _ = self.rnn_attention(output, encoder_out)
         return output, h
 
 
 class GRU_Skip_Decoder_(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1, bidirectional=False):
+    def __init__(self, batch_size, input_size, hidden_size=512, num_layers=1, bidirectional=False):
         super().__init__()
-        if bidirectional:
-            self.hidden_size = hidden_size * 2
-        else:
-            self.hidden_size = hidden_size
+        self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.padidx = 0
         self.gru = nn.GRU(
@@ -320,25 +327,25 @@ class GRU_Skip_Decoder_(nn.Module):
             bidirectional = bidirectional,
             batch_first = True
         )
-        self.rnn_attention = Attention(self.hidden_size, output_mode='concat')
-        self.linear = nn.Linear(input_size, self.hidden_size)
+        if bidirectional:
+            hidden_size = hidden_size * 2
+        else:
+            hidden_size = hidden_size
+        self.rnn_attention = Attention(hidden_size, output_mode='concat')
+        self.linear = nn.Linear(input_size, hidden_size)
 
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
-        input_size = input.size(0)
+        batch_size = input.size(0)
+        encoder_h = encoder_h.reshape(-1, batch_size, self.hidden_size)
         if seq_length is not None:
             # input: PackedSequence of (batch_size, seq_length, input_size)
             input = pack_padded_sequence(input, seq_length, batch_first=True, enforce_sorted=False)
         output, h = self.gru(input, encoder_h)
-        h = h.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
-        # output: (batch_size, seq_length, self.hidden_size)
-        # h: (batch_size, num_layers, self.hidden_size)
+        h = h.reshape(self.num_layers, input_size, -1)
+        # output: (batch_size, seq_length, hidden_size)
+        # h: (num_layers, batch_size, hidden_size)
         if seq_length is not None:
             out, lengths = pad_packed_sequence(output, batch_first=True, padding_value=self.padidx)
-            # lengths: (batch_size, 1, self.hidden_size)
-            lengths = lengths.reshape(-1, 1, 1).expand(-1, -1, self.hidden_size) - 1
-            # h: (batch_size, 1, self.hidden_size)
-            h = torch.gather(out, 1, lengths)
-        h = h.reshape(input_size, -1)
         if encoder_out is not None:
             output, _ = self.rnn_attention(output, encoder_out)
         output += self.linear(input)
@@ -346,7 +353,7 @@ class GRU_Skip_Decoder_(nn.Module):
 
 
 class LSTM_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -362,24 +369,28 @@ class LSTM_Decoder(nn.Module):
         seq_len = input.size(1)
         encoder_h, encoder_c = encoder_h
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-            # encoder_c, _ = self.c_attention(encoder_c, encoder_out)
-        h_in = [encoder_h] * self.num_layers
-        c_in = [encoder_c] * self.num_layers
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            # encoder_c, _ = self.c_attention(encoder_c.permute(1, 0, 2), encoder_out)
+            encoder_h = encoder_h.permute(1, 0, 2)
+            # encoder_c = encoder_c.permute(1, 0, 2)
+        h_in = [encoder_h[i, :, :] for i in range(self.num_layers)]
+        c_in = [encoder_c[i, :, :] for i in range(self.num_layers)]
         out = []
         for i in range(seq_len):
-            h = input[:, i, :]
+            h_i = input[:, i, :]
             for j, layer in enumerate(self.lstm):
-                h, c = layer(h, (h_in[j], c_in[j]))
-                h_in[j] = h
-                c_in[j] = c
-            out.append(h)
+                h_i, c_i = layer(h_i, (h_in[j], c_in[j]))
+                h_in[j] = h_i
+                c_in[j] = c_i
+            out.append(h_i)
         out = torch.stack(out, dim=1)
+        h = torch.stack(h_in, dim=0)
+        c = torch.stack(c_in, dim=0)
         return out, (h, c)
 
 
 class Bidirectional_LSTM_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -402,12 +413,14 @@ class Bidirectional_LSTM_Decoder(nn.Module):
         seq_len = input.size(1)
         encoder_h, encoder_c = encoder_h
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-            # encoder_c, _ = self.c_attention(encoder_c, encoder_out)
-        h_f_in = [encoder_h[:, :self.hidden_size]] * self.num_layers
-        h_b_in = [encoder_h[:, self.hidden_size:]] * self.num_layers
-        c_f_in = [encoder_c[:, :self.hidden_size]] * self.num_layers
-        c_in_b = [encoder_c[:, self.hidden_size:]] * self.num_layers
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            # encoder_c, _ = self.c_attention(encoder_c.permute(1, 0, 2), encoder_out)
+            encoder_h = encoder_h.permute(1, 0, 2)
+            # encoder_c = encoder_c.permute(1, 0, 2)
+        h_f_in = [encoder_h[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        h_b_in = [encoder_h[i, :, self.hidden_size:] for i in range(self.num_layers)]
+        c_f_in = [encoder_c[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        c_b_in = [encoder_c[i, :, self.hidden_size:] for i in range(self.num_layers)]
         reverse_input = self.reverse(input)
         out_f = []
         out_b = []
@@ -421,19 +434,23 @@ class Bidirectional_LSTM_Decoder(nn.Module):
                 h_b_in[j] = h_b
                 c_f_in[j] = c_f
                 c_b_in[j] = c_b
-            h = torch.cat([h_f, h_b], dim=1)
-            c = torch.cat([c_f, c_b], dim=1)
             out_f.append(h_f)
             out_b.append(h_b)
         out_f = torch.stack(out_f, dim=1)
         out_b = torch.stack(out_b, dim=1)
         out_b = self.reverse(out_b)
         out = torch.cat([out_f, out_b], dim=2)
+        h_f_out = torch.stack(h_f_in, dim=0)
+        h_b_out = torch.stack(h_b_in, dim=0)
+        c_f_out = torch.stack(c_f_in, dim=0)
+        c_b_out = torch.stack(c_b_in, dim=0)
+        h = torch.cat([h_f_out, h_b_out], dim=2)
+        c = torch.cat([c_f_out, c_b_out], dim=2)
         return out, (h, c)
 
 
 class Attention_LSTM_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -450,26 +467,30 @@ class Attention_LSTM_Decoder(nn.Module):
         seq_len = input.size(1)
         encoder_h, encoder_c = encoder_h
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-            # encoder_c, _ = self.c_attention(encoder_c, encoder_out)
-        h_in = [encoder_h] * self.num_layers
-        c_in = [encoder_c] * self.num_layers
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            # encoder_c, _ = self.c_attention(encoder_c.permute(1, 0, 2), encoder_out)
+            encoder_h = encoder_h.permute(1, 0, 2)
+            # encoder_c = encoder_c.permute(1, 0, 2)
+        h_in = [encoder_h[i, :, :] for i in range(self.num_layers)]
+        c_in = [encoder_c[i, :, :] for i in range(self.num_layers)]
         out = []
         for i in range(seq_len):
-            h = input[:, i, :]
+            h_i = input[:, i, :]
             for j, layer in enumerate(self.lstm):
-                h, c = layer(h, (h_in[j], c_in[j]))
-                h_in[j] = h
-                c_in[j] = c
+                h_i, c_i = layer(h_i, (h_in[j], c_in[j]))
+                h_in[j] = h_i
+                c_in[j] = c_i
             if encoder_out is not None:
-                h, _ = self.rnn_attention(h, encoder_out)
-            out.append(h)
+                h_i, _ = self.rnn_attention(h_i, encoder_out)
+            out.append(h_i)
         out = torch.stack(out, dim=1)
+        h = torch.stack(h_in, dim=0)
+        c = torch.stack(c_in, dim=0)
         return out, (h, c)
 
 
 class Attention_Bidirectional_LSTM_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -493,12 +514,14 @@ class Attention_Bidirectional_LSTM_Decoder(nn.Module):
         seq_len = input.size(1)
         encoder_h, encoder_c = encoder_h
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-            # encoder_c, _ = self.c_attention(encoder_c, encoder_out)
-        h_f_in = [encoder_h[:, :self.hidden_size]] * self.num_layers
-        h_b_in = [encoder_h[:, self.hidden_size:]] * self.num_layers
-        c_f_in = [encoder_c[:, :self.hidden_size]] * self.num_layers
-        c_in_b = [encoder_c[:, self.hidden_size:]] * self.num_layers
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            # encoder_c, _ = self.c_attention(encoder_c.permute(1, 0, 2), encoder_out)
+            encoder_h = encoder_h.permute(1, 0, 2)
+            # encoder_c = encoder_c.permute(1, 0, 2)
+        h_f_in = [encoder_h[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        h_b_in = [encoder_h[i, :, self.hidden_size:] for i in range(self.num_layers)]
+        c_f_in = [encoder_c[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        c_b_in = [encoder_c[i, :, self.hidden_size:] for i in range(self.num_layers)]
         reverse_input = self.reverse(input)
         out_f = []
         out_b = []
@@ -512,21 +535,26 @@ class Attention_Bidirectional_LSTM_Decoder(nn.Module):
                 h_b_in[j] = h_b
                 c_f_in[j] = c_f
                 c_b_in[j] = c_b
-            h = torch.cat([h_f, h_b], dim=1)
-            c = torch.cat([c_f, c_b], dim=1)
+            h_i = torch.cat([h_f, h_b], dim=1)
             if encoder_out is not None:
-                h, _ = self.rnn_attention(h, encoder_out)
-            out_f.append(h_f)
-            out_b.append(h_b)
+                h_i, _ = self.rnn_attention(h_i, encoder_out)
+            out_f.append(h_i[:, :self.hidden_size])
+            out_b.append(h_i[:, self.hidden_size:])
         out_f = torch.stack(out_f, dim=1)
         out_b = torch.stack(out_b, dim=1)
         out_b = self.reverse(out_b)
         out = torch.cat([out_f, out_b], dim=2)
+        h_f_out = torch.stack(h_f_in, dim=0)
+        h_b_out = torch.stack(h_b_in, dim=0)
+        c_f_out = torch.stack(c_f_in, dim=0)
+        c_b_out = torch.stack(c_b_in, dim=0)
+        h = torch.cat([h_f_out, h_b_out], dim=2)
+        c = torch.cat([c_f_out, c_b_out], dim=2)
         return out, (h, c)
 
 
 class Modal_Attention_LSTM_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -544,27 +572,31 @@ class Modal_Attention_LSTM_Decoder(nn.Module):
         seq_len = input.size(1)
         encoder_h, encoder_c = encoder_h
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-            # encoder_c, _ = self.c_attention(encoder_c, encoder_out)
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            # encoder_c, _ = self.c_attention(encoder_c.permute(1, 0, 2), encoder_out)
             encoder_out, _ = self.out_attention(encoder_out, encoder_out)
-        h_in = [encoder_h] * self.num_layers
-        c_in = [encoder_c] * self.num_layers
+            encoder_h = encoder_h.permute(1, 0, 2)
+            # encoder_c = encoder_c.permute(1, 0, 2)
+        h_in = [encoder_h[i, :, :] for i in range(self.num_layers)]
+        c_in = [encoder_c[i, :, :] for i in range(self.num_layers)]
         out = []
         for i in range(seq_len):
-            h = input[:, i, :]
+            h_i = input[:, i, :]
             for j, layer in enumerate(self.lstm):
-                h, c = layer(h, (h_in[j], c_in[j]))
-                h_in[j] = h
-                c_in[j] = c
+                h_i, c_i = layer(h_i, (h_in[j], c_in[j]))
+                h_in[j] = h_i
+                c_in[j] = c_i
             if encoder_out is not None:
-                h, _ = self.rnn_attention(h, encoder_out)
-            out.append(h)
+                h_i, _ = self.rnn_attention(h_i, encoder_out)
+            out.append(h_i)
         out = torch.stack(out, dim=1)
+        h = torch.stack(h_in, dim=0)
+        c = torch.stack(c_in, dim=0)
         return out, (h, c)
 
 
 class Modal_Attention_Bidirectional_LSTM_Decoder(nn.Module):
-    def __init__(self, input_size, hidden_size=512, num_layers=1):
+    def __init__(self, input_size, hidden_size=512, num_layers=1, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -589,19 +621,21 @@ class Modal_Attention_Bidirectional_LSTM_Decoder(nn.Module):
         seq_len = input.size(1)
         encoder_h, encoder_c = encoder_h
         if encoder_out is not None:
-            encoder_h, _ = self.h_attention(encoder_h, encoder_out)
-            # encoder_c, _ = self.c_attention(encoder_c, encoder_out)
+            encoder_h, _ = self.h_attention(encoder_h.permute(1, 0, 2), encoder_out)
+            # encoder_c, _ = self.c_attention(encoder_c.permute(1, 0, 2), encoder_out)
             encoder_out, _ = self.out_attention(encoder_out, encoder_out)
-        h_f_in = [encoder_h[:, :self.hidden_size]] * self.num_layers
-        h_b_in = [encoder_h[:, self.hidden_size:]] * self.num_layers
-        c_f_in = [encoder_c[:, :self.hidden_size]] * self.num_layers
-        c_in_b = [encoder_c[:, self.hidden_size:]] * self.num_layers
+            encoder_h = encoder_h.permute(1, 0, 2)
+            # encoder_c = encoder_c.permute(1, 0, 2)
+        h_f_in = [encoder_h[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        h_b_in = [encoder_h[i, :, self.hidden_size:] for i in range(self.num_layers)]
+        c_f_in = [encoder_c[i, :, :self.hidden_size] for i in range(self.num_layers)]
+        c_b_in = [encoder_c[i, :, self.hidden_size:] for i in range(self.num_layers)]
         reverse_input = self.reverse(input)
         out_f = []
         out_b = []
         for i in range(seq_len):
-            h_f = input[:, i, :]
-            h_b = reverse_input[:, i, :]
+            h_f = input[:, i, :self.hidden_size]
+            h_b = reverse_input[:, i, self.hidden_size:]
             for j, (layer_f, layer_b) in enumerate(zip(self.lstm_f, self.lstm_b)):
                 h_f, c_f = layer_f(h_f, (h_f_in[j], c_f_in[j]))
                 h_b, c_b = layer_b(h_b, (h_b_in[j], c_b_in[j]))
@@ -609,26 +643,28 @@ class Modal_Attention_Bidirectional_LSTM_Decoder(nn.Module):
                 h_b_in[j] = h_b
                 c_f_in[j] = c_f
                 c_b_in[j] = c_b
-            h = torch.cat([h_f, h_b], dim=1)
-            c = torch.cat([c_f, c_b], dim=1)
+            h_i = torch.cat([h_f, h_b], dim=1)
             if encoder_out is not None:
-                h, _ = self.rnn_attention(h, encoder_out)
-            out_f.append(h_f)
-            out_b.append(h_b)
+                h_i, _ = self.rnn_attention(h_i, encoder_out)
+            out_f.append(h_i[:, :self.hidden_size])
+            out_b.append(h_i[:, self.hidden_size:])
         out_f = torch.stack(out_f, dim=1)
         out_b = torch.stack(out_b, dim=1)
         out_b = self.reverse(out_b)
         out = torch.cat([out_f, out_b], dim=2)
-        return out, (h, c), (h, c)
+        h_f_out = torch.stack(h_f_in, dim=0)
+        h_b_out = torch.stack(h_b_in, dim=0)
+        c_f_out = torch.stack(c_f_in, dim=0)
+        c_b_out = torch.stack(c_b_in, dim=0)
+        h = torch.cat([h_f_out, h_b_out], dim=2)
+        c = torch.cat([c_f_out, c_b_out], dim=2)
+        return out, (h, c)
 
 
 class LSTM_Decoder_(nn.Module):
     def __init__(self, input_size, hidden_size=512, num_layers=1, bidirectional=False):
         super().__init__()
-        if bidirectional:
-            self.hidden_size = hidden_size * 2
-        else:
-            self.hidden_size = hidden_size
+        self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.padidx = 0
         self.lstm = nn.LSTM(
@@ -638,28 +674,27 @@ class LSTM_Decoder_(nn.Module):
             bidirectional = bidirectional,
             batch_first = True
         )
-        self.rnn_attention(self.hidden_size, output_mode='concat')
+        if bidirectional:
+            hidden_size = hidden_size * 2
+        else:
+            hidden_size = hidden_size
+        self.rnn_attention(hidden_size, output_mode='concat')
 
     def forward(self, input, encoder_h, encoder_out=None, seq_length=None):
-        input_size = input.size(0)
+        batch_size = input.size(0)
         encoder_h, encoder_c = encoder_h
+        encoder_h = encoder_h.reshape(-1, batch_size, self.hidden_size)
+        encoder_c = encoder_c.reshape(-1, batch_size, self.hidden_size)
         if seq_length is not None:
             # input: PackedSequence of (batch_size, seq_length, input_size)
             input = pack_padded_sequence(input, seq_length, batch_first=True, enforce_sorted=False)
         output, (h, c) = self.lstm(input, (encoder_h, encoder_c))
-        h = h.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
-        c = c.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
-        # output: (batch_size, seq_length, self.hidden_size)
-        # h, c: (batch_size, num_layers, self.hidden_size)
+        h = h.reshape(self.num_layers, batch_size, -1)
+        c = c.reshape(self.num_layers, batch_size, -1)
+        # output: (batch_size, seq_length, hidden_size)
+        # h, c: (num_layers, batch_size, hidden_size)
         if seq_length is not None:
             out, lengths = pad_packed_sequence(output, batch_first=True, padding_value=self.padidx)
-            # lengths: (batch_size, 1, self.hidden_size)
-            lengths = lengths.reshape(-1, 1, 1).expand(-1, -1, self.hidden_size) - 1
-            # h: (batch_size, 1, self.hidden_size)
-            h = torch.gather(out, 1, lengths)
-            c = c[:, -1, :]
-        h = h.reshape(input_size, -1)
-        c = c.reshape(input_size, -1)
         if encoder_out is not None:
             output, _ = self.rnn_attention(output, encoder_out)
         return output, (h, c)
@@ -668,10 +703,7 @@ class LSTM_Decoder_(nn.Module):
 class LSTM_Skip_Decoder_(nn.Module):
     def __init__(self, input_size, hidden_size=512, num_layers=1, bidirectional=False):
         super().__init__()
-        if bidirectional:
-            self.hidden_size = hidden_size * 2
-        else:
-            self.hidden_size = hidden_size
+        self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.padidx = 0
         self.lstm = nn.LSTM(
@@ -681,29 +713,28 @@ class LSTM_Skip_Decoder_(nn.Module):
             bidirectional = bidirectional,
             batch_first = True
         )
-        self.rnn_attention(self.hidden_size, output_mode='concat')
-        self.linear = nn.Linear(input_size, self.hidden_size)
+        if bidirectional:
+            hidden_size = hidden_size * 2
+        else:
+            hidden_size = hidden_size
+        self.rnn_attention(hidden_size, output_mode='concat')
+        self.linear = nn.Linear(input_size, hidden_size)
 
     def forward(self, input, encoder_h, encoder_out, seq_length=None):
-        input_size = input.size(0)
+        batch_size = input.size(0)
         encoder_h, encoder_c = encoder_h
+        encoder_h = encoder_h.reshape(-1, batch_size, self.hidden_size)
+        encoder_c = encoder_c.reshape(-1, batch_size, self.hidden_size)
         if seq_length is not None:
             # input: PackedSequence of (batch_size, seq_length, input_size)
             input = pack_padded_sequence(input, seq_length, batch_first=True, enforce_sorted=False)
         output, (h, c) = self.lstm(input, (encoder_h, encoder_c))
-        h = h.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
-        c = c.permute(1, 0, 2).reshape(input_size, self.num_layers, -1)
-        # output: (batch_size, seq_length, self.hidden_size)
-        # h, c: (batch_size, num_layers, self.hidden_size)
+        h = h.reshape(self.num_layers, batch_size, -1)
+        c = c.reshape(self.num_layers, batch_size, -1)
+        # output: (batch_size, seq_length, hidden_size)
+        # h, c: (num_layers, batch_size, hidden_size)
         if seq_length is not None:
             out, lengths = pad_packed_sequence(output, batch_first=True, padding_value=self.padidx)
-            # lengths: (batch_size, 1, self.hidden_size)
-            lengths = lengths.reshape(-1, 1, 1).expand(-1, -1, self.hidden_size) - 1
-            # h: (batch_size, 1, self.hidden_size)
-            h = torch.gather(out, 1, lengths)
-            c = c[:, -1, :]
-        h = h.reshape(input_size, -1)
-        c = c.reshape(input_size, -1)
         if encoder_out is not None:
             output, _ = self.rnn_attention(output, encoder_out)
         output += self.linear(input)
