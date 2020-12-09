@@ -23,6 +23,7 @@ class Net(nn.Module):
     hidden_size = kwargs.hidden_size
     num_layers = kwargs.num_layers
     output_size = kwargs.output_size
+    seq_length = kwargs.fix_length
     print('-'*50)
     print('rnn:', self.rnn)
     print('bidirection:', bidirection)
@@ -77,6 +78,7 @@ class Net(nn.Module):
         self.decoder = LSTM_Decoder_(input_size, hidden_size, num_layers, bidirection)
     elif self.rnn == 'Transformer':
       self.transformer = Transformer(input_size, hidden_size, num_layers)
+      self.transformer_fc = nn.Linear(seq_length, 1)
       self.pool = nn.AdaptiveAvgPool1d(1)
 
     if bidirection == True:
@@ -102,18 +104,19 @@ class Net(nn.Module):
       out, h = self.encoder(embed)
       out, h = self.decoder(embed, h, out)
       out = l2norm(out)
-      h = l2norm(h)
+      h = l2norm(h[-1, :, :])
       # print('decoder', out.size(), h.size())
     elif  'LSTM' in self.rnn:
       out, h = self.encoder(embed)
       out, h = self.decoder(embed, h, out)
       h, _ = h
       out = l2norm(out)
-      h = l2norm(h)
+      h = l2norm(h[-1, :, :])
     elif 'Transformer' in self.rnn:
       out = self.transformer(embed)
       out = l2norm(out)
-      h = self.pool(out.permute(0, 2, 1)).squeeze()
+      h = self.transformer_fc(out.permute(0, 2, 1)).squeeze(dim=-1)
+      # h = self.pool(out.permute(0, 2, 1)).squeeze()
     
     if self.self_attention:
       out, attention_map = self.attention(h, out)
@@ -148,6 +151,7 @@ class Model(nn.Module):
     hidden_size = kwargs.hidden_size
     num_layers = kwargs.num_layers
     output_size = kwargs.output_size
+    seq_length = kwargs.fix_length
     print('-'*50)
     print('rnn:', self.rnn)
     print('bidirection:', bidirection)
@@ -171,6 +175,7 @@ class Model(nn.Module):
       self.encoder = LSTM_Encoder_(input_size, hidden_size, num_layers, bidirection)
     elif self.rnn == 'Transformer':
       self.transformer = Transformer_Encoder(input_size, hidden_size, num_layers)
+      self.transformer_fc = nn.Linear(seq_length, 1)
       self.pool = nn.AdaptiveAvgPool1d(1)
 
     if bidirection == True and self.rnn != 'Transformer':
@@ -195,16 +200,17 @@ class Model(nn.Module):
     if 'GRU' in self.rnn:
       out, h = self.encoder(embed)
       out = l2norm(out)
-      h = l2norm(h)
+      h = l2norm(h[-1, :, :])
     elif 'LSTM' in self.rnn:
       out, h = self.encoder(embed)
       h, _ = h
       out = l2norm(out)
-      h = l2norm(h)
+      h = l2norm(h[-1, :, :])
     elif 'Transformer' in self.rnn:
       out = self.transformer(embed)
       out = l2norm(out)
-      h = self.pool(out.permute(0, 2, 1)).squeeze()
+      h = self.transformer_fc(out.permute(0, 2, 1)).squeeze(dim=-1)
+      # h = self.pool(out.permute(0, 2, 1)).squeeze()
     
     if self.self_attention:
       out, attention_map = self.attention(h, out)
